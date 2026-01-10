@@ -97,14 +97,14 @@ with st.sidebar:
     origens = st.selectbox(
         "Origem", 
         options=airport_options, 
-        index=default_idx_origem,
+        index=None,
         help="Digite o nome da cidade ou código IATA para buscar"
     )
     
     destinos = st.selectbox(
         "Destino", 
         options=airport_options, 
-        index=default_idx_destino,
+        index=None,
         help="Digite o nome da cidade ou código IATA para buscar"
     )
     

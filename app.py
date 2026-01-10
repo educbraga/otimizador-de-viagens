@@ -62,16 +62,30 @@ with st.sidebar:
     criancas = col_c.number_input("Crianças", 0, 5, 0)
     
     st.markdown("### 📅 Datas")
-    data_inicio = st.date_input("Data Início", value=date(2026, 2, 5))
+    data_inicio = st.date_input(
+        "Data Início", 
+        value=date(2026, 2, 5), 
+        format="DD/MM/YYYY"
+    )
     
     ida_e_volta = st.toggle("Ida e Volta", value=True)
     
     data_volta = data_inicio + timedelta(days=7)
-    if ida_e_volta:
-        data_volta = st.date_input("Data de Volta", value=data_inicio + timedelta(days=7))
     
-    alugar_carro = st.toggle("Alugar Carro", value=False)
-    buscar_hoteis_toggle = st.toggle("Buscar Hotéis", value=True)
+    # Inicializa variáveis como False por padrão para evitar erros se 'ida_e_volta' for False
+    alugar_carro = False
+    buscar_hoteis_toggle = False
+
+    if ida_e_volta:
+        data_volta = st.date_input(
+            "Data de Volta", 
+            value=data_inicio + timedelta(days=7),
+             format="DD/MM/YYYY"
+        )
+        
+        # Opções exibidas apenas se Ida e Volta estiver ativo
+        alugar_carro = st.toggle("Alugar Carro", value=False)
+        buscar_hoteis_toggle = st.toggle("Buscar Hotéis", value=True)
     
     st.markdown("---")
     st.markdown("### 📍 Roteiro")
@@ -136,25 +150,95 @@ st.markdown("---")
 tab_rota, tab_hoteis, tab_tendencia = st.tabs(["📋 Itinerários", "🏨 Hotéis Encontrados", "📈 Tendência de Preço"])
 
 with tab_rota:
-    df_rota = pd.DataFrame({
-        "Rota": ["São Paulo (GRU) ➔ Miami (MIA)"],
-        "Cia Aérea": ["LATAM"],
-        "Partida": [f"02:40 ({data_inicio.strftime('%d/%m/%y')})"],
-        "Chegada": [f"06:35 ({data_inicio.strftime('%d/%m/%y')})"],
-        "Duração": ["10h 35min"],
-        "Detalhes": ["1 parada"],
-        "Conexões":["Panamá (PTY) - 1h 35m de espera"],
-        "Preço": ["R$ 1.540,00"],
-    })
-    st.table(df_rota)
-    st.info("💡 **Dica:** Esta rota economiza R$ 1.200 em relação ao voo direto.")
+    # 1. Banco de dados de coordenadas (Hubs)
+    coords = {
+        "GRU": [-23.4356, -46.4731], 
+        "MIA": [25.7959, -80.2870],  
+        "PTY": [9.0714, -79.3835],   # Panamá
+        "BOG": [4.7016, -74.1469],   # Bogotá
+        "LIM": [-12.0241, -77.1120], # Lima
+        "ATL": [33.6407, -84.4277]   # Atlanta
+    }
 
-    st.subheader("Visualização da Rota")
-    mapa = folium.Map(location=[10, -70], zoom_start=3, tiles="CartoDB positron")
-    folium.PolyLine([[-23.5, -46.6], [9.0, -79.5], [25.7, -80.1]], color="#0066FF", weight=4).add_to(mapa)
-    #folium.Marker([-23.5, -46.6], popup=origens).add_to(mapa)
-    #folium.Marker([25.7, -80.1], popup=destinos).add_to(mapa)
+    # 2. Criação do DataFrame das Rotas
+    df_rota = pd.DataFrame({
+        "Cia Aérea": ["Copa Airlines", "Avianca", "LATAM", "Delta Airlines"],
+        "Rota": ["São Paulo (GRU) ➔ Miami (MIA)"] * 4,
+        "Partida": [
+            f"01:30 ({data_inicio.strftime('%d/%m')})",
+            f"06:05 ({data_inicio.strftime('%d/%m')})",
+            f"19:40 ({data_inicio.strftime('%d/%m')})",
+            f"22:50 ({data_inicio.strftime('%d/%m')})"
+        ],
+        "Chegada": [
+            f"10:38 ({(data_inicio).strftime('%d/%m')})", 
+            f"17:20 ({(data_inicio).strftime('%d/%m')})", 
+            f"05:15 ({(data_inicio + timedelta(days=1)).strftime('%d/%m')})", 
+            f"09:30 ({(data_inicio + timedelta(days=1)).strftime('%d/%m')})"  
+        ],
+        "Duração": ["11h 08min", "13h 15min", "12h 35min", "14h 40min"],
+        "Detalhes": ["1 parada", "1 parada", "1 parada", "1 parada"],
+        "Conexões": [
+            "Panamá (PTY) - 1h 20m espera", 
+            "Bogotá (BOG) - 3h 10m espera", 
+            "Lima (LIM) - 2h 05m espera", 
+            "Atlanta (ATL) - 2h 45m espera"
+        ],
+        "Preço": ["R$ 3.250,00", "R$ 2.980,00", "R$ 3.540,00", "R$ 4.100,00"],
+    })
+
+    st.info("👇 **Clique em uma linha** da tabela para visualizar a rota no mapa.")
+
+    # 3. Tabela Interativa (Substitui st.table)
+    # on_select="rerun" faz o app recarregar quando clica
+    event = st.dataframe(
+        df_rota,
+        use_container_width=True,
+        hide_index=True,
+        on_select="rerun", 
+        selection_mode="single-row"
+    )
+
+    # 4. Lógica de Captura da Seleção
+    # Se houver seleção, pega o índice. Se não, usa 0 (primeira rota).
+    rows = event.selection.rows
+    selected_index = rows[0] if rows else 0
+    
+    # Extrai os dados da linha selecionada
+    rota_selecionada = df_rota.iloc[selected_index]
+    conexao_texto = rota_selecionada["Conexões"]
+    cia_selecionada = rota_selecionada["Cia Aérea"]
+
+    # 5. Lógica do Mapa Dinâmico
+    st.subheader(f"Visualização: {cia_selecionada}")
+    
+    mapa = folium.Map(location=[5.0, -65.0], zoom_start=3, tiles="CartoDB positron")
+    
+    # Define pontos fixos (Mock)
+    ponto_origem = coords["GRU"]
+    ponto_destino = coords["MIA"]
+
+    # Marcadores Origem/Destino
+    folium.Marker(ponto_origem, popup="GRU", icon=folium.Icon(color="green", icon="plane")).add_to(mapa)
+    folium.Marker(ponto_destino, popup="MIA", icon=folium.Icon(color="red", icon="flag")).add_to(mapa)
+
+    # Identifica coordenada da conexão baseado na string da linha selecionada
+    ponto_conexao = None
+    if "PTY" in conexao_texto: ponto_conexao = coords["PTY"]
+    elif "BOG" in conexao_texto: ponto_conexao = coords["BOG"]
+    elif "LIM" in conexao_texto: ponto_conexao = coords["LIM"]
+    elif "ATL" in conexao_texto: ponto_conexao = coords["ATL"]
+
+    # Desenha rota
+    if ponto_conexao:
+        folium.PolyLine([ponto_origem, ponto_conexao, ponto_destino], color="#0066FF", weight=4, opacity=0.8).add_to(mapa)
+        folium.CircleMarker(ponto_conexao, radius=6, color="orange", fill=True, fill_color="orange", popup=conexao_texto).add_to(mapa)
+    else:
+        folium.PolyLine([ponto_origem, ponto_destino], color="#0066FF", weight=4).add_to(mapa)
+
     st_folium(mapa, width="100%", height=400, key="mapa_rota")
+
+    
 
 with tab_hoteis:
     st.subheader(f"Melhores opções em {destinos}")

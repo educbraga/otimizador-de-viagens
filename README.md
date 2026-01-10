@@ -2,11 +2,13 @@
 
 # 1. Criar ambiente virtual Python
 
-python3 -m venv venv
+python -m venv venv
 
 # 2. Ativar o ambiente virtual
 
 source venv/bin/activate
+
+Se Windows: .\venv\Scripts\activate
 
 # 3. Instalar as dependências
 

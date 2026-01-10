@@ -3,6 +3,7 @@ import pandas as pd
 import folium
 from streamlit_folium import st_folium
 from datetime import date, timedelta
+import ast
 
 # Importação da ferramenta de busca (Google Hotels)
 try:
@@ -39,6 +40,22 @@ def load_airports():
     except Exception as e:
         st.error(f"Erro ao carregar arquivo de aeroportos (airports.csv): {e}")
         return []
+
+# Carregamento do banco de dados de coordenadas (substituindo o hardcoded)
+@st.cache_data
+def load_coordinates():
+    try:
+        # O arquivo coord.csv contém uma estrutura de dicionário Python 'coords = {...}'
+        # e não um formato CSV padrão. Usamos ast.literal_eval para processá-lo.
+        with open("coord.csv", "r") as f:
+            content = f.read()
+            # Remove a atribuição da variável para parsear apenas o dicionário
+            if "coords =" in content:
+                content = content.replace("coords =", "").strip()
+            return ast.literal_eval(content)
+    except Exception as e:
+        st.error(f"Erro ao carregar arquivo de coordenadas (coord.csv): {e}")
+        return {}
 
 # Carrega a lista uma única vez
 airport_options = load_airports()
@@ -150,15 +167,8 @@ st.markdown("---")
 tab_rota, tab_hoteis, tab_tendencia = st.tabs(["📋 Itinerários", "🏨 Hotéis Encontrados", "📈 Tendência de Preço"])
 
 with tab_rota:
-    # 1. Banco de dados de coordenadas (Hubs)
-    coords = {
-        "GRU": [-23.4356, -46.4731], 
-        "MIA": [25.7959, -80.2870],  
-        "PTY": [9.0714, -79.3835],   # Panamá
-        "BOG": [4.7016, -74.1469],   # Bogotá
-        "LIM": [-12.0241, -77.1120], # Lima
-        "ATL": [33.6407, -84.4277]   # Atlanta
-    }
+    # 1. Banco de dados de coordenadas (Hubs) - Lendo do arquivo coord.csv
+    coords = load_coordinates()
 
     # 2. Criação do DataFrame das Rotas
     df_rota = pd.DataFrame({
@@ -215,8 +225,15 @@ with tab_rota:
     mapa = folium.Map(location=[5.0, -65.0], zoom_start=3, tiles="CartoDB positron")
     
     # Define pontos fixos (Mock)
-    ponto_origem = coords["GRU"]
-    ponto_destino = coords["MIA"]
+    # Nota: Em produção, você buscaria dinamicamente do input do usuário
+    # Se as chaves não existirem no novo arquivo coord.csv, adicione tratamento de erro
+    try:
+        ponto_origem = coords.get("GRU", [-23.4356, -46.4731])
+        ponto_destino = coords.get("MIA", [25.7959, -80.2870])
+    except AttributeError:
+        # Fallback caso coords não tenha carregado corretamente
+        ponto_origem = [-23.4356, -46.4731]
+        ponto_destino = [25.7959, -80.2870]
 
     # Marcadores Origem/Destino
     folium.Marker(ponto_origem, popup="GRU", icon=folium.Icon(color="green", icon="plane")).add_to(mapa)
@@ -224,10 +241,11 @@ with tab_rota:
 
     # Identifica coordenada da conexão baseado na string da linha selecionada
     ponto_conexao = None
-    if "PTY" in conexao_texto: ponto_conexao = coords["PTY"]
-    elif "BOG" in conexao_texto: ponto_conexao = coords["BOG"]
-    elif "LIM" in conexao_texto: ponto_conexao = coords["LIM"]
-    elif "ATL" in conexao_texto: ponto_conexao = coords["ATL"]
+    # Verifica se a chave existe no dicionário carregado antes de acessar
+    if "PTY" in conexao_texto and "PTY" in coords: ponto_conexao = coords["PTY"]
+    elif "BOG" in conexao_texto and "BOG" in coords: ponto_conexao = coords["BOG"]
+    elif "LIM" in conexao_texto and "LIM" in coords: ponto_conexao = coords["LIM"]
+    elif "ATL" in conexao_texto and "ATL" in coords: ponto_conexao = coords["ATL"]
 
     # Desenha rota
     if ponto_conexao:

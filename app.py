@@ -17,6 +17,32 @@ st.set_page_config(
     layout="wide"
 )
 
+# Carregamento dos dados de aeroportos para autocomplete
+@st.cache_data
+def load_airports():
+    try:
+        # Carrega o CSV assumindo que ele está no mesmo diretório
+        df = pd.read_csv("airports.csv")
+        
+        # Remove entradas que não tenham código IATA ou Cidade definidos
+        df = df.dropna(subset=['IATA', 'City', 'Airport name'])
+        
+        # Cria uma string formatada para facilitar a busca: "Cidade (IATA) - Aeroporto"
+        # Ex: "São Paulo (GRU) - Guarulhos..."
+        df['Display'] = df.apply(
+            lambda x: f"{str(x['City']).strip()} ({str(x['IATA']).strip()}) - {str(x['Airport name']).strip()}", 
+            axis=1
+        )
+        
+        # Retorna a lista ordenada para o selectbox
+        return sorted(df['Display'].unique().tolist())
+    except Exception as e:
+        st.error(f"Erro ao carregar arquivo de aeroportos (airports.csv): {e}")
+        return []
+
+# Carrega a lista uma única vez
+airport_options = load_airports()
+
 # 2. Estilização CSS Minimalista
 st.markdown("""
     <style>
@@ -49,8 +75,39 @@ with st.sidebar:
     
     st.markdown("---")
     st.markdown("### 📍 Roteiro")
-    origens = st.text_input("Origem", "São Paulo")
-    destinos = st.text_input("Destino", "Miami")
+    
+    # Lógica para definir índices padrão (Tenta achar GRU e MIA, senão usa o primeiro da lista)
+    default_idx_origem = 0
+    default_idx_destino = 0
+    
+    if airport_options:
+        # Procura índice para São Paulo (GRU)
+        for i, opt in enumerate(airport_options):
+            if "GRU" in opt and "São Paulo" in opt:
+                default_idx_origem = i
+                break
+        
+        # Procura índice para Miami (MIA)
+        for i, opt in enumerate(airport_options):
+            if "MIA" in opt and "Miami" in opt:
+                default_idx_destino = i
+                break
+
+    # Implementação dos campos com Selectbox (Autocomplete)
+    origens = st.selectbox(
+        "Origem", 
+        options=airport_options, 
+        index=default_idx_origem,
+        help="Digite o nome da cidade ou código IATA para buscar"
+    )
+    
+    destinos = st.selectbox(
+        "Destino", 
+        options=airport_options, 
+        index=default_idx_destino,
+        help="Digite o nome da cidade ou código IATA para buscar"
+    )
+    
     cidades_extra = st.text_area("Cidades Obrigatórias", placeholder="Ex: Londres, Paris...")
     
     st.markdown("---")

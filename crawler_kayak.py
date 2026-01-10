@@ -49,7 +49,7 @@ def gerar_url_kayak(dados):
     return url_final
 
 
-def raspar_kayak(url, headless=False):
+def raspar_kayak(url, headless=True):
     """
     Acessa o Kayak e extrai os resultados de voos.
     

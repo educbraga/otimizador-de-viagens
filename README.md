@@ -26,6 +26,10 @@ python crawler_kayak.py
 
 streamlit run app.py
 
+# 7. Iniciar o Backend
+
+uvicorn main:app --reload
+
 ## 📄 Licença
 
 Este projeto está sob a licença MIT

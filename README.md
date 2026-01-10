@@ -10,6 +10,8 @@ source venv/bin/activate
 
 Se Windows: .\venv\Scripts\activate
 
+E aí, Marcelo.
+
 # 3. Instalar as dependências
 
 pip install -r requirements.txt

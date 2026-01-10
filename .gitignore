@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+.env.*
+
+# Playwright
+playwright/.cache/
+ms-playwright/
+
+# Logs
+*.log
+
+# JSON / Outputs gerados pelo crawler
+resultados_voos.json
+
+# Streamlit
+.streamlit/
+
+# Jupyter / misc
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -138,12 +138,12 @@ tab_rota, tab_hoteis, tab_tendencia = st.tabs(["📋 Itinerários", "🏨 Hotéi
 with tab_rota:
     df_rota = pd.DataFrame({
         "Rota": ["São Paulo (GRU) ➔ Miami (MIA)"],
-        "Detalhes": ["1 parada - Panamá (PTY)"],
-        "Espera":["1h 35m"],
         "Cia Aérea": ["LATAM"],
         "Partida": [f"02:40 ({data_inicio.strftime('%d/%m/%y')})"],
         "Chegada": [f"06:35 ({data_inicio.strftime('%d/%m/%y')})"],
         "Duração": ["10h 35min"],
+        "Detalhes": ["1 parada"],
+        "Conexões":["Panamá (PTY) - 1h 35m de espera"],
         "Preço": ["R$ 1.540,00"],
     })
     st.table(df_rota)

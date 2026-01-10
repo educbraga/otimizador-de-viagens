@@ -18,9 +18,13 @@ pip install -r requirements.txt
 
 playwright install chromium
 
-# 5. Rodar o crawler
+# 5. Rodar o crawler (opcional)
 
 python crawler_kayak.py
+
+# 6. Rodar o Frontend com Streamlit
+
+streamlit run app.py
 
 ## 📄 Licença
 

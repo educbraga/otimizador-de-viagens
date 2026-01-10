@@ -1,0 +1,105 @@
+{
+  "busca": {
+    "origem": "GRU",
+    "destino": "MIA",
+    "data_ida": "2026-02-05",
+    "data_volta": "2026-02-13",
+    "ida_e_volta": true,
+    "adultos": 1,
+    "criancas": 0
+  },
+  "data_execucao": "2026-01-10T15:34:50.374970",
+  "total_voos": 10,
+  "voos": [
+    {
+      "posicao": 1,
+      "preco": "N/A",
+      "companhia": "N/A",
+      "horario_partida": "7:35–17:05",
+      "horario_chegada": "8:45–4:55+1",
+      "duracao": "11h 30min",
+      "paradas": "N/A"
+    },
+    {
+      "posicao": 2,
+      "preco": "N/A",
+      "companhia": "N/A",
+      "horario_partida": "2:40–11:30",
+      "horario_chegada": "2:05–16:15",
+      "duracao": "10h 50min",
+      "paradas": "N/A"
+    },
+    {
+      "posicao": 3,
+      "preco": "N/A",
+      "companhia": "N/A",
+      "horario_partida": "7:35–17:05",
+      "horario_chegada": "2:05–16:15",
+      "duracao": "11h 30min",
+      "paradas": "N/A"
+    },
+    {
+      "posicao": 4,
+      "preco": "N/A",
+      "companhia": "N/A",
+      "horario_partida": "17:25–3:10+1",
+      "horario_chegada": "2:05–16:15",
+      "duracao": "11h 45min",
+      "paradas": "N/A"
+    },
+    {
+      "posicao": 5,
+      "preco": "N/A",
+      "companhia": "N/A",
+      "horario_partida": "1:20–11:30",
+      "horario_chegada": "2:05–16:15",
+      "duracao": "12h 10min",
+      "paradas": "N/A"
+    },
+    {
+      "posicao": 6,
+      "preco": "N/A",
+      "companhia": "N/A",
+      "horario_partida": "2:40–11:30",
+      "horario_chegada": "7:00–22:40",
+      "duracao": "10h 50min",
+      "paradas": "N/A"
+    },
+    {
+      "posicao": 7,
+      "preco": "N/A",
+      "companhia": "N/A",
+      "horario_partida": "7:35–17:05",
+      "horario_chegada": "7:00–22:40",
+      "duracao": "11h 30min",
+      "paradas": "N/A"
+    },
+    {
+      "posicao": 8,
+      "preco": "N/A",
+      "companhia": "N/A",
+      "horario_partida": "17:25–3:10+1",
+      "horario_chegada": "7:00–22:40",
+      "duracao": "11h 45min",
+      "paradas": "N/A"
+    },
+    {
+      "posicao": 9,
+      "preco": "N/A",
+      "companhia": "N/A",
+      "horario_partida": "2:40–11:30",
+      "horario_chegada": "13:00–5:40+1",
+      "duracao": "10h 50min",
+      "paradas": "N/A"
+    },
+    {
+      "posicao": 10,
+      "preco": "N/A",
+      "companhia": "N/A",
+      "horario_partida": "1:20–11:30",
+      "horario_chegada": "7:00–22:40",
+      "duracao": "12h 10min",
+      "paradas": "N/A"
+    }
+  ]
+}

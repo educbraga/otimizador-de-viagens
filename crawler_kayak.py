@@ -3,8 +3,10 @@ Crawler simples para buscar voos no Kayak
 Usa Playwright para renderizar a página e BeautifulSoup para extrair dados.
 """
 
+import json
 import random
 import time
+from datetime import datetime
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 
@@ -225,6 +227,98 @@ def exibir_resultados(voos):
    {'-'*40}""")
 
 
+def salvar_json(voos, dados_busca, arquivo="resultados_voos.json"):
+    """
+    Salva os resultados em um arquivo JSON.
+    
+    Args:
+        voos: Lista de voos encontrados
+        dados_busca: Dados da busca original
+        arquivo: Nome do arquivo de saída
+    
+    Returns:
+        Caminho do arquivo salvo
+    """
+    resultado = {
+        "busca": dados_busca,
+        "data_execucao": datetime.now().isoformat(),
+        "total_voos": len(voos),
+        "voos": voos
+    }
+    
+    with open(arquivo, 'w', encoding='utf-8') as f:
+        json.dump(resultado, f, ensure_ascii=False, indent=2)
+    
+    print(f"💾 Resultados salvos em: {arquivo}")
+    return arquivo
+
+
+def buscar_voos(dados_busca, salvar=True, arquivo="resultados_voos.json"):
+    """
+    Função principal para o backend consumir.
+    
+    Args:
+        dados_busca: Dicionário com origem, destino, datas, etc.
+        salvar: Se True, salva em arquivo JSON
+        arquivo: Nome do arquivo de saída (se salvar=True)
+    
+    Returns:
+        Dicionário com os resultados da busca
+    
+    Exemplo de uso:
+        from crawler_kayak import buscar_voos
+        
+        dados = {
+            "origem": "GRU",
+            "destino": "MIA",
+            "data_ida": "2026-02-05",
+            "data_volta": "2026-02-13",
+            "ida_e_volta": True,
+            "adultos": 1,
+            "criancas": 0
+        }
+        
+        resultado = buscar_voos(dados, salvar=True)
+        print(resultado['voos'])  # Lista de voos
+    """
+    url = gerar_url_kayak(dados_busca)
+    voos = raspar_kayak(url, headless=False)
+    
+    resultado = {
+        "busca": dados_busca,
+        "url": url,
+        "data_execucao": datetime.now().isoformat(),
+        "total_voos": len(voos),
+        "voos": voos
+    }
+    
+    if salvar:
+        salvar_json(voos, dados_busca, arquivo)
+    
+    return resultado
+
+
+def carregar_json(arquivo="resultados_voos.json"):
+    """
+    Carrega resultados de um arquivo JSON salvo anteriormente.
+    
+    Args:
+        arquivo: Caminho do arquivo JSON
+    
+    Returns:
+        Dicionário com os dados salvos
+    
+    Exemplo de uso:
+        from crawler_kayak import carregar_json
+        
+        dados = carregar_json('resultados_voos.json')
+        for voo in dados['voos']:
+            print(f"{voo['companhia']} - {voo['preco']}")
+    """
+    with open(arquivo, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
 # Execução direta para teste
 if __name__ == "__main__":
     # Exemplo de uso
@@ -239,12 +333,13 @@ if __name__ == "__main__":
     }
     
     print("🔍 Iniciando busca de voos...")
-    print(f"   Rota: {dados_busca['origem']} → {dados_busca['destino']}")
-    print(f"   Datas: {dados_busca['data_ida']} a {dados_busca['data_volta']}")
-    print(f"   Passageiros: {dados_busca['adultos']} adulto(s), {dados_busca['criancas']} criança(s)")
     
-    url = gerar_url_kayak(dados_busca)
-    print(f"\n🔗 URL gerada: {url}\n")
+    # Usa a função principal que retorna JSON
+    resultado = buscar_voos(dados_busca, salvar=True)
     
-    voos = raspar_kayak(url, headless=False)
-    exibir_resultados(voos)
+    # Exibe no terminal
+    exibir_resultados(resultado['voos'])
+    
+    # Mostra o JSON no terminal também
+    print("\n📋 JSON gerado:")
+    print(json.dumps(resultado, ensure_ascii=False, indent=2))

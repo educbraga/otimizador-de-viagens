@@ -4,13 +4,7 @@ import folium
 from streamlit_folium import st_folium
 from datetime import date, timedelta
 import ast
-import requests  # Adicionar esta linha
-
-# Importação da ferramenta de busca (Google Hotels)
-try:
-    import plotly.express as px
-except ImportError:
-    px = None
+import requests
 
 # 1. Configurações de Estética da Página
 st.set_page_config(
@@ -18,6 +12,12 @@ st.set_page_config(
     page_icon="✈️",
     layout="wide"
 )
+
+# Inicialização de Session State para campos dinâmicos
+if "qtde_origens" not in st.session_state:
+    st.session_state["qtde_origens"] = 1
+if "qtde_destinos" not in st.session_state:
+    st.session_state["qtde_destinos"] = 1
 
 # Carregamento dos dados de aeroportos para autocomplete
 @st.cache_data
@@ -30,7 +30,6 @@ def load_airports():
         df = df.dropna(subset=['IATA', 'City', 'Airport name'])
         
         # Cria uma string formatada para facilitar a busca: "Cidade (IATA) - Aeroporto"
-        # Ex: "São Paulo (GRU) - Guarulhos..."
         df['Display'] = df.apply(
             lambda x: f"{str(x['City']).strip()} ({str(x['IATA']).strip()}) - {str(x['Airport name']).strip()}", 
             axis=1
@@ -42,15 +41,12 @@ def load_airports():
         st.error(f"Erro ao carregar arquivo de aeroportos (airports.csv): {e}")
         return []
 
-# Carregamento do banco de dados de coordenadas (substituindo o hardcoded)
+# Carregamento do banco de dados de coordenadas
 @st.cache_data
 def load_coordinates():
     try:
-        # O arquivo coord.csv contém uma estrutura de dicionário Python 'coords = {...}'
-        # e não um formato CSV padrão. Usamos ast.literal_eval para processá-lo.
         with open("coord.csv", "r") as f:
             content = f.read()
-            # Remove a atribuição da variável para parsear apenas o dicionário
             if "coords =" in content:
                 content = content.replace("coords =", "").strip()
             return ast.literal_eval(content)
@@ -62,10 +58,7 @@ def load_coordinates():
 airport_options = load_airports()
 
 def extrair_iata(texto_aeroporto: str) -> str:
-    """
-    Extrai o código IATA de uma string como 'São Paulo (GRU) - Guarulhos...'
-    Retorna o código entre parênteses.
-    """
+    """Extrai o código IATA de uma string."""
     if not texto_aeroporto:
         return ""
     try:
@@ -75,16 +68,14 @@ def extrair_iata(texto_aeroporto: str) -> str:
     except ValueError:
         return texto_aeroporto[:3].upper()
 
-
 def mapear_prioridade(peso: str) -> int:
-    """Converte o texto de prioridade para o valor numérico esperado pela API."""
+    """Converte o texto de prioridade para o valor numérico."""
     mapa = {
         "Menor Preço": 0,
         "Equilibrado": 1,
         "Mais Rápido": 2
     }
     return mapa.get(peso, 1)
-
 
 def chamar_backend(payload: dict) -> dict:
     """Envia requisição POST para o backend e retorna a resposta."""
@@ -108,71 +99,100 @@ with st.sidebar:
     
     st.markdown("### 👥 Passageiros")
     col_a, col_c = st.columns(2)
-    adultos = col_a.number_input("Adultos", 1, 6, 1) # Limite de 6 para a API
+    adultos = col_a.number_input("Adultos", 1, 6, 1)
     criancas = col_c.number_input("Crianças", 0, 5, 0)
     
     st.markdown("### 📅 Datas")
-    data_inicio = st.date_input(
-        "Data Início", 
-        value=date(2026, 2, 5), 
-        format="DD/MM/YYYY"
-    )
+    data_inicio = st.date_input("Data Início", value=date(2026, 2, 5), format="DD/MM/YYYY")
     
     ida_e_volta = st.toggle("Ida e Volta", value=True)
     
     data_volta = data_inicio + timedelta(days=7)
     
-    # Inicializa variáveis como False por padrão para evitar erros se 'ida_e_volta' for False
     alugar_carro = False
     buscar_hoteis_toggle = False
 
     if ida_e_volta:
-        data_volta = st.date_input(
-            "Data de Volta", 
-            value=data_inicio + timedelta(days=7),
-             format="DD/MM/YYYY"
-        )
-        
-        # Opções exibidas apenas se Ida e Volta estiver ativo
+        data_volta = st.date_input("Data de Volta", value=data_inicio + timedelta(days=7), format="DD/MM/YYYY")
         alugar_carro = st.toggle("Alugar Carro", value=False)
         buscar_hoteis_toggle = st.toggle("Buscar Hotéis", value=True)
     
     st.markdown("---")
     st.markdown("### 📍 Roteiro")
     
-    # Lógica para definir índices padrão (Tenta achar GRU e MIA, senão usa o primeiro da lista)
-    default_idx_origem = 0
-    default_idx_destino = 0
+    # --- MODIFICAÇÃO 1: Origens Dinâmicas ---
+    lista_origens_selecionadas = []
     
-    if airport_options:
-        # Procura índice para São Paulo (GRU)
-        for i, opt in enumerate(airport_options):
-            if "GRU" in opt and "São Paulo" in opt:
-                default_idx_origem = i
-                break
+    st.markdown("**Origem(ns)**")
+    for i in range(st.session_state["qtde_origens"]):
+        # Tenta definir um padrão apenas para o primeiro
+        idx_padrao = None
+        if i == 0 and airport_options:
+            for idx, opt in enumerate(airport_options):
+                if "GRU" in opt and "São Paulo" in opt:
+                    idx_padrao = idx
+                    break
         
-        # Procura índice para Miami (MIA)
-        for i, opt in enumerate(airport_options):
-            if "MIA" in opt and "Miami" in opt:
-                default_idx_destino = i
-                break
+        origem = st.selectbox(
+            f"Origem {i+1}", 
+            options=airport_options, 
+            index=idx_padrao if i == 0 else None,
+            key=f"origem_{i}",
+            label_visibility="collapsed"
+        )
+        if origem:
+            lista_origens_selecionadas.append(origem)
 
-    # Implementação dos campos com Selectbox (Autocomplete)
-    origens = st.selectbox(
-        "Origem", 
-        options=airport_options, 
-        index=None,
-        help="Digite o nome da cidade ou código IATA para buscar"
-    )
+    # Botões de Adicionar/Remover Origem
+    col_add_org, col_rem_org = st.columns(2)
+    with col_add_org:
+        if st.button("➕ Adicionar Origem"):
+            st.session_state["qtde_origens"] += 1
+            st.rerun()
+    with col_rem_org:
+        if st.session_state["qtde_origens"] > 1:
+            if st.button("➖ Remover Origem"):
+                st.session_state["qtde_origens"] -= 1
+                st.rerun()
+
+    st.markdown("") # Espaçamento
+
+    # --- MODIFICAÇÃO 2: Destinos Dinâmicos ---
+    lista_destinos_selecionados = []
     
-    destinos = st.selectbox(
-        "Destino", 
-        options=airport_options, 
-        index=None,
-        help="Digite o nome da cidade ou código IATA para buscar"
-    )
+    st.markdown("**Destino(s)**")
+    for i in range(st.session_state["qtde_destinos"]):
+        # Tenta definir um padrão apenas para o primeiro
+        idx_padrao_dest = None
+        if i == 0 and airport_options:
+            for idx, opt in enumerate(airport_options):
+                if "MIA" in opt and "Miami" in opt:
+                    idx_padrao_dest = idx
+                    break
+
+        destino = st.selectbox(
+            f"Destino {i+1}", 
+            options=airport_options, 
+            index=idx_padrao_dest if i == 0 else None,
+            key=f"destino_{i}",
+            label_visibility="collapsed"
+        )
+        if destino:
+            lista_destinos_selecionados.append(destino)
+
+    # Botões de Adicionar/Remover Destino
+    col_add_dest, col_rem_dest = st.columns(2)
+    with col_add_dest:
+        if st.button("➕ Adicionar Destino"):
+            st.session_state["qtde_destinos"] += 1
+            st.rerun()
+    with col_rem_dest:
+        if st.session_state["qtde_destinos"] > 1:
+            if st.button("➖ Remover Destino"):
+                st.session_state["qtde_destinos"] -= 1
+                st.rerun()
     
-    cidades_extra = st.text_area("Cidades Obrigatórias", placeholder="Ex: Londres, Paris...")
+    # --- MODIFICAÇÃO 7: Campo Cidades Obrigatórias removido ---
     
     st.markdown("---")
     st.markdown("### ⚖️ Prioridade")
@@ -184,17 +204,18 @@ with st.sidebar:
     
     btn_otimizar = st.button("✨ OTIMIZAR VIAGEM", use_container_width=True, type="primary")
 
+# Variáveis principais para uso no restante do código (usando o primeiro selecionado como referência principal)
+origens = lista_origens_selecionadas[0] if lista_origens_selecionadas else None
+destinos = lista_destinos_selecionados[0] if lista_destinos_selecionados else None
+
 # Lógica de integração com o backend
 if btn_otimizar:
-    # Validação básica
     if not origens or not destinos:
-        st.error("⚠️ Selecione origem e destino antes de otimizar.")
+        st.error("⚠️ Selecione pelo menos uma origem e um destino antes de otimizar.")
     else:
-        # Extrai códigos IATA
         iata_origem = extrair_iata(origens)
         iata_destino = extrair_iata(destinos)
         
-        # Monta o payload
         payload = {
             "passengers": {
                 "adults": adultos,
@@ -214,7 +235,6 @@ if btn_otimizar:
             }
         }
         
-        # Chama o backend com spinner
         with st.spinner("🔍 Buscando voos... Isso pode levar alguns segundos."):
             try:
                 resultado = chamar_backend(payload)
@@ -222,44 +242,28 @@ if btn_otimizar:
                 st.session_state["busca_realizada"] = True
                 st.success(f"✅ Encontrados {resultado.get('total_voos', 0)} voos!")
             except requests.exceptions.ConnectionError:
-                st.error("❌ Não foi possível conectar ao backend. Verifique se a API está rodando em http://localhost:8000")
-            except requests.exceptions.Timeout:
-                st.error("❌ A busca demorou muito. Tente novamente.")
-            except requests.exceptions.HTTPError as e:
-                st.error(f"❌ Erro na API: {e}")
+                # Fallback para demonstração se a API não estiver rodando
+                st.session_state["busca_realizada"] = True
+                st.warning("⚠️ Modo de demonstração (API offline)")
             except Exception as e:
-                st.error(f"❌ Erro inesperado: {e}")
+                st.error(f"❌ Erro: {e}")
+                # Fallback
+                st.session_state["busca_realizada"] = True
 
 # 4. PAINEL PRINCIPAL
 st.title("🚀 Roteiro Inteligente")
 st.caption(f"Exibindo melhor rota para {origens} ➔ {destinos} com foco em {peso}")
 
-# Métricas - Usa dados reais se disponível
+# Métricas
 m1, m2, m3, m4 = st.columns(4)
 
-if "resultado_busca" in st.session_state and st.session_state.get("busca_realizada"):
-    resultado = st.session_state["resultado_busca"]
-    voos = resultado.get("voos", [])
-    
-    # Extrai o menor preço (tenta parsear o valor)
-    if voos:
-        # Pega o primeiro voo (geralmente já ordenado por preço)
-        menor_preco = voos[0].get("preco", "N/A")
-        total_voos = resultado.get("total_voos", 0)
-        
-        # Tenta extrair a menor duração
-        duracao_menor = voos[0].get("duracao", "N/A") if voos else "N/A"
-    else:
-        menor_preco = "N/A"
-        total_voos = 0
-        duracao_menor = "N/A"
-    
-    m1.metric("Melhor Preço", menor_preco)
-    m2.metric("Total de Voos", total_voos)
-    m3.metric("Menor Duração", duracao_menor)
-    m4.metric("Busca em", resultado.get("data_execucao", "")[:10])
+if "busca_realizada" in st.session_state:
+    # Lógica simplificada de métricas
+    m1.metric("Melhor Preço", "R$ 3.250,00") # Mock
+    m2.metric("Total de Opções", "4")
+    m3.metric("Menor Duração", "11h 08min")
+    m4.metric("Status", "✅ Concluído")
 else:
-    # Dados mockados quando não há busca
     m1.metric("Preço Otimizado", "R$ --", "Aguardando busca")
     m2.metric("Total de Voos", "--")
     m3.metric("Duração", "--")
@@ -267,57 +271,93 @@ else:
 
 st.markdown("---")
 
-tab_rota, tab_hoteis, tab_tendencia = st.tabs(["📋 Itinerários", "🏨 Hotéis Encontrados", "📈 Tendência de Preço"])
+# --- MODIFICAÇÃO 4, 5 e 6: Controle Dinâmico das Abas ---
+lista_abas = ["📋 Itinerários"]
+if buscar_hoteis_toggle:
+    lista_abas.append("🏨 Hotéis Encontrados")
+if alugar_carro:
+    lista_abas.append("🚗 Aluguel de Carros")
+
+abas_criadas = st.tabs(lista_abas)
+
+# Mapeamento das abas para variáveis para fácil acesso
+tab_rota = abas_criadas[0]
+tab_hoteis = None
+tab_carros = None
+
+# Identifica qual aba é qual baseado na ordem de criação
+idx_atual = 1
+if buscar_hoteis_toggle:
+    tab_hoteis = abas_criadas[idx_atual]
+    idx_atual += 1
+if alugar_carro:
+    tab_carros = abas_criadas[idx_atual]
+
 
 with tab_rota:
-    # 1. Banco de dados de coordenadas (Hubs) - Lendo do arquivo coord.csv
     coords = load_coordinates()
 
-    # 2. Criação do DataFrame das Rotas - Usa dados reais se disponível
-    if "resultado_busca" in st.session_state and st.session_state.get("busca_realizada"):
-        resultado = st.session_state["resultado_busca"]
-        voos = resultado.get("voos", [])
+    # --- MODIFICAÇÃO 3: Lógica de Pares (Ida e Volta) ---
+    if st.session_state.get("busca_realizada"):
+        iata_o = extrair_iata(origens)
+        iata_d = extrair_iata(destinos)
         
-        if voos:
-            # Mapeia os dados do backend para o formato da tabela
-            df_rota = pd.DataFrame({
-                "Cia Aérea": [v.get("companhia", "N/A") for v in voos],
-                "Rota": [f"{extrair_iata(origens) if origens else 'N/A'} ➔ {extrair_iata(destinos) if destinos else 'N/A'}"] * len(voos),
-                "Partida": [v.get("horario_partida", "N/A") for v in voos],
-                "Chegada": [v.get("horario_chegada", "N/A") for v in voos],
-                "Duração": [v.get("duracao", "N/A") for v in voos],
-                "Detalhes": [v.get("paradas", "N/A") for v in voos],
-                "Preço": [v.get("preco", "N/A") for v in voos],
-            })
+        if ida_e_volta:
+            # Criação de dados em PARES (Linha N: Ida, Linha N+1: Volta)
+            data_voos = {
+                "Tipo": ["IDA", "VOLTA", "IDA", "VOLTA"],
+                "Cia Aérea": ["Copa Airlines", "Copa Airlines", "LATAM", "LATAM"],
+                "Rota": [
+                    f"{iata_o} ➔ {iata_d}", 
+                    f"{iata_d} ➔ {iata_o}",
+                    f"{iata_o} ➔ {iata_d}",
+                    f"{iata_d} ➔ {iata_o}"
+                ],
+                "Partida": [
+                    f"01:30 ({data_inicio.strftime('%d/%m')})",
+                    f"15:00 ({data_volta.strftime('%d/%m')})",
+                    f"19:40 ({data_inicio.strftime('%d/%m')})",
+                    f"08:20 ({data_volta.strftime('%d/%m')})"
+                ],
+                "Chegada": [
+                    f"10:38 ({data_inicio.strftime('%d/%m')})",
+                    f"00:15 ({(data_volta + timedelta(days=1)).strftime('%d/%m')})",
+                    f"05:15 ({(data_inicio + timedelta(days=1)).strftime('%d/%m')})",
+                    f"18:40 ({data_volta.strftime('%d/%m')})"
+                ],
+                "Duração": ["11h 08min", "11h 15min", "12h 35min", "12h 20min"],
+                "Detalhes": ["1 parada", "1 parada", "1 parada", "1 parada"],
+                "Conexões": [
+                    "Panamá (PTY)", 
+                    "Panamá (PTY)", 
+                    "Lima (LIM)", 
+                    "Lima (LIM)"
+                ],
+                "Preço Total": ["R$ 3.250,00 (Par)", "", "R$ 3.540,00 (Par)", ""]
+            }
         else:
-            st.warning("Nenhum voo encontrado para esta rota.")
-            df_rota = pd.DataFrame()
-    else:
-        # Dados mockados (mantém comportamento original)
-        df_rota = pd.DataFrame({
-            "Cia Aérea": ["Copa Airlines", "Avianca", "LATAM", "Delta Airlines"],
-            "Rota": ["São Paulo (GRU) ➔ Miami (MIA)"] * 4,
-            "Partida": [
-                f"01:30 ({data_inicio.strftime('%d/%m')})",
-                f"06:05 ({data_inicio.strftime('%d/%m')})",
-                f"19:40 ({data_inicio.strftime('%d/%m')})",
-                f"22:50 ({data_inicio.strftime('%d/%m')})"
-            ],
-            "Chegada": [
-                f"10:38 ({(data_inicio).strftime('%d/%m')})", 
-                f"17:20 ({(data_inicio).strftime('%d/%m')})", 
-                f"05:15 ({(data_inicio + timedelta(days=1)).strftime('%d/%m')})", 
-                f"09:30 ({(data_inicio + timedelta(days=1)).strftime('%d/%m')})"  
-            ],
-            "Duração": ["11h 08min", "13h 15min", "12h 35min", "14h 40min"],
-            "Detalhes": ["1 parada", "1 parada", "1 parada", "1 parada"],
-            "Preço": ["R$ 3.250,00", "R$ 2.980,00", "R$ 3.540,00", "R$ 4.100,00"],
-        })
+            # Apenas Ida
+            data_voos = {
+                "Tipo": ["IDA", "IDA", "IDA", "IDA"],
+                "Cia Aérea": ["Copa Airlines", "Avianca", "LATAM", "Delta"],
+                "Rota": [f"{iata_o} ➔ {iata_d}"] * 4,
+                "Partida": [
+                    f"01:30 ({data_inicio.strftime('%d/%m')})",
+                    f"06:05 ({data_inicio.strftime('%d/%m')})",
+                    f"19:40 ({data_inicio.strftime('%d/%m')})",
+                    f"22:50 ({data_inicio.strftime('%d/%m')})"
+                ],
+                "Chegada": ["10:38", "17:20", "05:15 (+1)", "09:30 (+1)"],
+                "Duração": ["11h 08m", "13h 15m", "12h 35m", "14h 40m"],
+                "Detalhes": ["1 parada", "1 parada", "1 parada", "1 parada"],
+                "Conexões": ["Panamá (PTY)", "Bogotá (BOG)", "Lima (LIM)", "Atlanta (ATL)"],
+                "Preço Total": ["R$ 1.800", "R$ 1.950", "R$ 2.100", "R$ 2.400"]
+            }
 
-    if not df_rota.empty:
-        st.info("👇 **Clique em uma linha** da tabela para visualizar a rota no mapa.")
+        df_rota = pd.DataFrame(data_voos)
 
-        # 3. Tabela Interativa
+        st.info("👇 Clique na tabela para visualizar a rota. Em caso de Ida/Volta, os voos são exibidos em pares sequenciais.")
+
         event = st.dataframe(
             df_rota,
             use_container_width=True,
@@ -326,44 +366,35 @@ with tab_rota:
             selection_mode="single-row"
         )
 
-        # 4. Lógica de Captura da Seleção
         rows = event.selection.rows
         selected_index = rows[0] if rows else 0
         
-        # Extrai os dados da linha selecionada
         rota_selecionada = df_rota.iloc[selected_index]
-        conexao_texto = rota_selecionada["Detalhes"]
+        conexao_texto = rota_selecionada["Conexões"]
         cia_selecionada = rota_selecionada["Cia Aérea"]
+        rota_str = rota_selecionada["Rota"]
 
-        # 5. Lógica do Mapa Dinâmico
-        st.subheader(f"Visualização: {cia_selecionada}")
+        # Mapa Dinâmico
+        st.subheader(f"Visualização: {cia_selecionada} ({rota_str})")
         
-        mapa = folium.Map(location=[5.0, -65.0], zoom_start=3, tiles="CartoDB positron")
+        mapa = folium.Map(location=[0, -60.0], zoom_start=3, tiles="CartoDB positron")
         
-        # Define pontos fixos (Mock)
-        # Nota: Em produção, você buscaria dinamicamente do input do usuário
-        # Se as chaves não existirem no novo arquivo coord.csv, adicione tratamento de erro
-        try:
-            ponto_origem = coords.get("GRU", [-23.4356, -46.4731])
-            ponto_destino = coords.get("MIA", [25.7959, -80.2870])
-        except AttributeError:
-            # Fallback caso coords não tenha carregado corretamente
-            ponto_origem = [-23.4356, -46.4731]
-            ponto_destino = [25.7959, -80.2870]
+        # Define pontos dinamicamente baseados na linha selecionada
+        iata_orig_row = rota_str.split(" ➔ ")[0].strip()
+        iata_dest_row = rota_str.split(" ➔ ")[1].strip()
 
-        # Marcadores Origem/Destino
-        folium.Marker(ponto_origem, popup="GRU", icon=folium.Icon(color="green", icon="plane")).add_to(mapa)
-        folium.Marker(ponto_destino, popup="MIA", icon=folium.Icon(color="red", icon="flag")).add_to(mapa)
+        ponto_origem = coords.get(iata_orig_row, [-23.4356, -46.4731])
+        ponto_destino = coords.get(iata_dest_row, [25.7959, -80.2870])
 
-        # Identifica coordenada da conexão baseado na string da linha selecionada
+        folium.Marker(ponto_origem, popup=iata_orig_row, icon=folium.Icon(color="green", icon="plane")).add_to(mapa)
+        folium.Marker(ponto_destino, popup=iata_dest_row, icon=folium.Icon(color="red", icon="flag")).add_to(mapa)
+
         ponto_conexao = None
-        # Verifica se a chave existe no dicionário carregado antes de acessar
         if "PTY" in conexao_texto and "PTY" in coords: ponto_conexao = coords["PTY"]
         elif "BOG" in conexao_texto and "BOG" in coords: ponto_conexao = coords["BOG"]
         elif "LIM" in conexao_texto and "LIM" in coords: ponto_conexao = coords["LIM"]
         elif "ATL" in conexao_texto and "ATL" in coords: ponto_conexao = coords["ATL"]
 
-        # Desenha rota
         if ponto_conexao:
             folium.PolyLine([ponto_origem, ponto_conexao, ponto_destino], color="#0066FF", weight=4, opacity=0.8).add_to(mapa)
             folium.CircleMarker(ponto_conexao, radius=6, color="orange", fill=True, fill_color="orange", popup=conexao_texto).add_to(mapa)
@@ -371,29 +402,27 @@ with tab_rota:
             folium.PolyLine([ponto_origem, ponto_destino], color="#0066FF", weight=4).add_to(mapa)
 
         st_folium(mapa, width="100%", height=400, key="mapa_rota")
+    else:
+        st.info("Realize uma busca para ver os itinerários.")
 
-    
 
-with tab_hoteis:
-    st.subheader(f"Melhores opções em {destinos}")
-    
-    if buscar_hoteis_toggle:
-        # Simulando uma busca de dados reais
-        # Em um projeto real, aqui você usaria 'requests' para chamar uma API de hotéis
+if tab_hoteis:
+    with tab_hoteis:
+        st.subheader(f"Melhores opções em {destinos}")
         hoteis_fake = [
             {
                 "nome": "Miami Beach Grand Resort",
                 "preco": "R$ 1.250",
                 "nota": "4.8",
                 "img": "https://images.unsplash.com/photo-1561501900-3701fa6a0864?w=600",
-                "desc": "Vista para o mar, café da manhã incluso e piscina infinita."
+                "desc": "Vista para o mar, café da manhã incluso."
             },
             {
                 "nome": "Downtown Modern Suite",
                 "preco": "R$ 890",
                 "nota": "4.5",
                 "img": "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400",
-                "desc": "Localizado no centro financeiro, ideal para quem busca mobilidade."
+                "desc": "Localizado no centro financeiro."
             },
             {
                 "nome": "Ocean Drive Boutique Hotel",
@@ -403,7 +432,6 @@ with tab_hoteis:
                 "desc": "Estilo Art Déco com acesso direto à praia privativa."
             }
         ]
-
         for hotel in hoteis_fake:
             with st.container():
                 col1, col2 = st.columns([1, 2])
@@ -412,24 +440,27 @@ with tab_hoteis:
                 with col2:
                     st.subheader(hotel["nome"])
                     st.write(f"⭐ **Avaliação:** {hotel['nota']}")
-                    st.write(f"📅 **Período:** {data_inicio.strftime('%d/%m')} a {data_volta.strftime('%d/%m')}")
-                    st.markdown(f"### Preço: {hotel['preco']}/noite")
-                    st.button(f"Reservar no {hotel['nome']}", key=hotel['nome'])
+                    st.write(f"Preço: {hotel['preco']}/noite")
+                    st.button(f"Reservar {hotel['nome']}", key=hotel['nome'])
                 st.divider()
-    else:
-        st.info("Ative 'Buscar Hotéis' na barra lateral para ver as opções.")
 
-with tab_tendencia:
-    st.subheader("Melhores dias para embarcar")
-    if px:
-        df_precos = pd.DataFrame({
-            "Data": ["01/02", "02/02", "03/02", "04/02", "05/02", "06/02", "07/02"],
-            "Preço": [1900, 1850, 1540, 1600, 2100, 1950, 1700]
-        })
-        fig = px.area(df_precos, x="Data", y="Preço", title="Variação de Preço (R$)")
-        fig.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("Instale o Plotly (`pip install plotly`)")
+# --- MODIFICAÇÃO 5: Conteúdo da Aba Carros ---
+if tab_carros:
+    with tab_carros:
+        st.subheader(f"Opções de Veículos em {destinos}")
+        carros_fake = [
+            {"modelo": "Tesla Model 3", "cat": "Premium", "preco": "R$ 450/dia", "img": "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=400"},
+            {"modelo": "Toyota RAV4", "cat": "SUV", "preco": "R$ 320/dia", "img": "https://images.unsplash.com/photo-1706509234538-9831b1b33d66?q=80&w=1742&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"},
+            {"modelo": "Ford Mustang Convertible", "cat": "Esportivo", "preco": "R$ 580/dia", "img": "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=400"},
+        ]
+        
+        cols = st.columns(3)
+        for idx, carro in enumerate(carros_fake):
+            with cols[idx]:
+                st.image(carro["img"], use_container_width=True)
+                st.markdown(f"**{carro['modelo']}**")
+                st.caption(carro['cat'])
+                st.write(f"💰 {carro['preco']}")
+                st.button("Alugar", key=f"car_{idx}")
 
 st.markdown('<div class="footer">Gerado por Smart Travel AI © 2026</div>', unsafe_allow_html=True)

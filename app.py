@@ -377,17 +377,39 @@ with tab_rota:
         # Mapa Dinâmico
         st.subheader(f"Visualização: {cia_selecionada} ({rota_str})")
         
-        mapa = folium.Map(location=[0, -60.0], zoom_start=3, tiles="CartoDB positron")
-        
-        # Define pontos dinamicamente baseados na linha selecionada
-        iata_orig_row = rota_str.split(" ➔ ")[0].strip()
-        iata_dest_row = rota_str.split(" ➔ ")[1].strip()
+        iata_origem = extrair_iata(origens)
+        iata_destino = extrair_iata(destinos)
 
-        ponto_origem = coords.get(iata_orig_row, [-23.4356, -46.4731])
-        ponto_destino = coords.get(iata_dest_row, [25.7959, -80.2870])
+        ponto_origem = coords.get(iata_origem)
+        ponto_destino = coords.get(iata_destino)
 
-        folium.Marker(ponto_origem, popup=iata_orig_row, icon=folium.Icon(color="green", icon="plane")).add_to(mapa)
-        folium.Marker(ponto_destino, popup=iata_dest_row, icon=folium.Icon(color="red", icon="flag")).add_to(mapa)
+        if not ponto_origem or not ponto_destino:
+            st.warning("⚠️ Coordenadas não encontradas para origem ou destino.")
+            st.stop()
+
+        # Centraliza o mapa entre origem e destino
+        center_lat = (ponto_origem[0] + ponto_destino[0]) / 2
+        center_lon = (ponto_origem[1] + ponto_destino[1]) / 2
+
+        mapa = folium.Map(
+            location=[center_lat, center_lon],
+            zoom_start=4,
+            tiles="CartoDB positron"
+        )
+    
+
+        # Marcadores Origem/Destino
+        folium.Marker(
+            ponto_origem,
+            popup=f"Origem: {iata_origem}",
+            icon=folium.Icon(color="green", icon="plane")
+        ).add_to(mapa)
+
+        folium.Marker(
+            ponto_destino,
+            popup=f"Destino: {iata_destino}",
+            icon=folium.Icon(color="red", icon="flag")
+        ).add_to(mapa)
 
         ponto_conexao = None
         if "PTY" in conexao_texto and "PTY" in coords: ponto_conexao = coords["PTY"]
@@ -396,10 +418,20 @@ with tab_rota:
         elif "ATL" in conexao_texto and "ATL" in coords: ponto_conexao = coords["ATL"]
 
         if ponto_conexao:
-            folium.PolyLine([ponto_origem, ponto_conexao, ponto_destino], color="#0066FF", weight=4, opacity=0.8).add_to(mapa)
+            folium.PolyLine(
+                [ponto_origem, ponto_destino],
+                color="#0066FF",
+                weight=4,
+                opacity=0.8
+            ).add_to(mapa)
             folium.CircleMarker(ponto_conexao, radius=6, color="orange", fill=True, fill_color="orange", popup=conexao_texto).add_to(mapa)
         else:
-            folium.PolyLine([ponto_origem, ponto_destino], color="#0066FF", weight=4).add_to(mapa)
+            folium.PolyLine(
+                [ponto_origem, ponto_destino],
+                color="#0066FF",
+                weight=4,
+                opacity=0.8
+            ).add_to(mapa)
 
         st_folium(mapa, width="100%", height=400, key="mapa_rota")
     else:

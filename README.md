@@ -2,6 +2,10 @@
 
 # 1. Criar ambiente virtual Python
 
+python3 -m venv venv
+
+ou
+
 python -m venv venv
 
 # 2. Ativar o ambiente virtual
@@ -25,6 +29,10 @@ python crawler_kayak.py
 # 6. Rodar o Frontend com Streamlit
 
 streamlit run app.py
+
+# 7. Iniciar o Backend
+
+uvicorn main:app --reload
 
 ## 📄 Licença
 

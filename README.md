@@ -1,5 +1,7 @@
 # Otimizador de Viagens
 
+![Logo](images/logo1.png)
+
 Uma plataforma para otimização de itinerários de viagem, focada em busca e comparação de voos aéreos utilizando dados coletados de fontes online.
 
 ## 📋 Descrição

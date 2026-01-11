@@ -76,9 +76,17 @@ O sistema é composto por três componentes principais que podem ser executados 
 ### Como Usar
 
 1. Abra a interface Streamlit no navegador
+
+   ![Interface Inicial](images/home.png)
+
 2. Insira os detalhes da viagem (origem, destino, datas, passageiros)
-3. Clique em "Buscar Voos" para obter opções otimizadas
+3. Clique em "Otimizar viagem" para obter opções otimizadas
+
+   ![Crawling em Execução](images/crawler.png)
+
 4. Visualize os resultados em formato de tabela e mapa
+
+   ![Resultados](images/results.png)
 
 ## 📁 Estrutura do Projeto
 

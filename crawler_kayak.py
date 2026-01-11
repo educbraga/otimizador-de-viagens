@@ -173,7 +173,7 @@ def extrair_voos(html_content):
             preco = preco_el.get_text(strip=True) if preco_el else "N/A"
             
             # Companhia aérea
-            cia_el = resultado.select_one('.c_cgF-carrier, .codeshares-airline-names, .leg-carrier')
+            cia_el = resultado.select_one('.c_cgF-carrier, .codeshares-airline-names, .leg-carrier, .J0g6-operator-text')
             companhia = cia_el.get_text(strip=True) if cia_el else "N/A"
             
             # Horários

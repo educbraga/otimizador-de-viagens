@@ -8,97 +8,97 @@
     "adultos": 1,
     "criancas": 0
   },
-  "data_execucao": "2026-01-10T23:34:22.544311",
+  "data_execucao": "2026-01-11T18:19:30.147724",
   "total_voos": 10,
   "voos": [
     {
       "posicao": 1,
-      "preco": "R$ 2.664",
-      "companhia": "N/A",
-      "horario_partida": "7:35–17:05",
-      "horario_chegada": "8:45–4:55+1",
-      "duracao": "11h 30min",
+      "preco": "R$ 2.734",
+      "companhia": "Sky Airline, Sky Airlines Peru",
+      "horario_partida": "6:10–7:20+1",
+      "horario_chegada": "17:10–4:55+2",
+      "duracao": "27h 10min",
       "paradas": "N/A"
     },
     {
       "posicao": 2,
-      "preco": "R$ 2.664",
-      "companhia": "N/A",
-      "horario_partida": "1:20–11:30",
-      "horario_chegada": "17:10–4:55+2",
-      "duracao": "12h 10min",
+      "preco": "R$ 2.743",
+      "companhia": "Sky Airline, Sky Airlines Peru",
+      "horario_partida": "6:10–7:20+1",
+      "horario_chegada": "8:45–4:55+1",
+      "duracao": "27h 10min",
       "paradas": "N/A"
     },
     {
       "posicao": 3,
       "preco": "R$ 2.751",
-      "companhia": "N/A",
+      "companhia": "Avianca",
       "horario_partida": "2:40–11:30",
-      "horario_chegada": "7:00–22:40",
+      "horario_chegada": "2:05–16:15",
       "duracao": "10h 50min",
       "paradas": "N/A"
     },
     {
       "posicao": 4,
       "preco": "R$ 2.751",
-      "companhia": "N/A",
+      "companhia": "Avianca",
       "horario_partida": "7:35–17:05",
-      "horario_chegada": "7:00–22:40",
+      "horario_chegada": "2:05–16:15",
       "duracao": "11h 30min",
       "paradas": "N/A"
     },
     {
       "posicao": 5,
       "preco": "R$ 2.751",
-      "companhia": "N/A",
+      "companhia": "Avianca",
       "horario_partida": "17:25–3:10+1",
-      "horario_chegada": "7:00–22:40",
+      "horario_chegada": "2:05–16:15",
       "duracao": "11h 45min",
       "paradas": "N/A"
     },
     {
       "posicao": 6,
       "preco": "R$ 2.751",
-      "companhia": "N/A",
-      "horario_partida": "2:40–11:30",
-      "horario_chegada": "13:00–5:40+1",
-      "duracao": "10h 50min",
+      "companhia": "Avianca",
+      "horario_partida": "1:20–11:30",
+      "horario_chegada": "2:05–16:15",
+      "duracao": "12h 10min",
       "paradas": "N/A"
     },
     {
       "posicao": 7,
       "preco": "R$ 2.751",
-      "companhia": "N/A",
-      "horario_partida": "1:20–11:30",
+      "companhia": "Avianca",
+      "horario_partida": "2:40–11:30",
       "horario_chegada": "7:00–22:40",
-      "duracao": "12h 10min",
+      "duracao": "10h 50min",
       "paradas": "N/A"
     },
     {
       "posicao": 8,
       "preco": "R$ 2.751",
-      "companhia": "N/A",
+      "companhia": "Avianca",
       "horario_partida": "7:35–17:05",
-      "horario_chegada": "13:00–5:40+1",
+      "horario_chegada": "7:00–22:40",
       "duracao": "11h 30min",
       "paradas": "N/A"
     },
     {
       "posicao": 9,
       "preco": "R$ 2.751",
-      "companhia": "N/A",
+      "companhia": "Avianca",
       "horario_partida": "17:25–3:10+1",
-      "horario_chegada": "13:00–5:40+1",
+      "horario_chegada": "7:00–22:40",
       "duracao": "11h 45min",
       "paradas": "N/A"
     },
     {
       "posicao": 10,
       "preco": "R$ 2.751",
-      "companhia": "N/A",
-      "horario_partida": "1:20–11:30",
+      "companhia": "Avianca",
+      "horario_partida": "2:40–11:30",
       "horario_chegada": "13:00–5:40+1",
-      "duracao": "12h 10min",
+      "duracao": "10h 50min",
       "paradas": "N/A"
     }
   ]

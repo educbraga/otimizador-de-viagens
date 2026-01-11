@@ -169,7 +169,7 @@ def extrair_voos(html_content):
     for i, resultado in enumerate(resultados[:10]):  # Limita a 10 resultados
         try:
             # Preço
-            preco_el = resultado.select_one('.f8F1-price-text, .price-text, .multibook-price-per-person')
+            preco_el = resultado.select_one('.f8F1-price-text, .price-text, .multibook-price-per-person, .e2GB-price-text')
             preco = preco_el.get_text(strip=True) if preco_el else "N/A"
             
             # Companhia aérea

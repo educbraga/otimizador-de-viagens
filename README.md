@@ -2,6 +2,10 @@
 
 # 1. Criar ambiente virtual Python
 
+python3 -m venv venv
+
+ou
+
 python -m venv venv
 
 # 2. Ativar o ambiente virtual

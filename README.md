@@ -99,9 +99,9 @@ otimizador-de-viagens/
 
 Este projeto foi desenvolvido por:
 
-- **Eduardo Braga**
-- **Israel Magalhães**
-- **Marcelo Carvalho**
+- **[Eduardo Braga](https://github.com/educbraga)**
+- **[Israel Magalhães](https://github.com/israelmteixeira1)**
+- **[Marcelo Carvalho](https://github.com/dr-marcelocarvalho)**
 
 ## 📄 Licença
 

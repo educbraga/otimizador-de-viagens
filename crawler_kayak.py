@@ -185,7 +185,7 @@ def extrair_voos(html_content):
             duracao = duracao_el.get_text(strip=True) if duracao_el else "N/A"
             
             # Paradas
-            paradas_el = resultado.select_one('.JWEO-stops-text, .stops-text')
+            paradas_el = resultado.select_one('.JWEO .vmXl-mod-variant-default span')
             paradas = paradas_el.get_text(strip=True) if paradas_el else "N/A"
             
             voo = {

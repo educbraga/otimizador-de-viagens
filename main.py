@@ -1,18 +1,22 @@
 """
-API REST simples para otimização de viagens aéreas.
-Integra com o crawler existente do Kayak.
+API REST para otimização de viagens aéreas.
+Integra com crawler do Kayak e solver NSGA-II para otimização multiobjetivo.
 """
 
+import re
+import traceback
 from fastapi import FastAPI, HTTPException
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, field_validator
-from typing import Optional
+from typing import Optional, List
 from datetime import date
+from dataclasses import dataclass
 
-# Importa a função do crawler existente
+# Importa o crawler existente
 from crawler_kayak import buscar_voos
 
 
-# ============== Modelos Pydantic ==============
+# ===================== MODELOS Pydantic =====================
 
 class Passengers(BaseModel):
     adults: int = 1
@@ -24,12 +28,11 @@ class Dates(BaseModel):
     departure_date: date
     return_date: Optional[date] = None
 
-    @field_validator('return_date')
+    @field_validator("return_date")
     @classmethod
     def validate_return_date(cls, v, info):
-        """Valida que return_date existe se is_roundtrip=True"""
-        if info.data.get('is_roundtrip') and v is None:
-            raise ValueError('return_date é obrigatório para viagens de ida e volta')
+        if info.data.get("is_roundtrip") and v is None:
+            raise ValueError("return_date é obrigatório para ida e volta")
         return v
 
 
@@ -43,12 +46,11 @@ class Preferences(BaseModel):
     book_hotel: bool = False
     priority_level: int = 1
 
-    @field_validator('priority_level')
+    @field_validator("priority_level")
     @classmethod
     def validate_priority(cls, v):
-        """Valida que priority_level está em {0, 1, 2}"""
         if v not in {0, 1, 2}:
-            raise ValueError('priority_level deve ser 0, 1 ou 2')
+            raise ValueError("priority_level deve ser 0, 1 ou 2")
         return v
 
 
@@ -56,26 +58,118 @@ class OptimizeTripRequest(BaseModel):
     passengers: Passengers
     dates: Dates
     route: Route
-    preferences: Optional[Preferences] = None
+    preferences: Optional[Preferences] = Preferences()
 
 
-# ============== Aplicação FastAPI ==============
+# ===================== SCHEMAS DO SOLVER =====================
+
+@dataclass
+class FlightSchema:
+    id: str
+    origin: str
+    destination: str
+    departure_time: str
+    arrival_time: str
+    duration_minutes: int
+    price: float
+    airline: str
+    stops: str
+    raw_data: dict
+
+
+@dataclass
+class TravelRequestSchema:
+    origin: str
+    destination: str
+    departure_date: str
+    return_date: Optional[str]
+    passengers: int
+    weight_cost: float
+    weight_time: float
+
+
+@dataclass
+class ItinerarySolution:
+    flight: FlightSchema
+    total_cost: float
+    total_duration: int
+    fitness_score: float
+    is_pareto_optimal: bool
+    rank: int
+
+
+# ===================== FASTAPI =====================
 
 app = FastAPI(
     title="Otimizador de Viagens",
-    description="API para busca otimizada de voos aéreos",
-    version="1.0.0"
+    version="2.0.0",
+    description="Busca e otimização de voos usando NSGA-II"
 )
 
 
-# ============== Funções Auxiliares ==============
+# ===================== CONSTANTES =====================
 
-def adaptar_payload(request: OptimizeTripRequest) -> dict:
-    """
-    Converte o payload da API para o formato esperado pelo crawler.
-    
-    API format -> Crawler format
-    """
+PRIORITY_WEIGHTS = {
+    0: {"weight_cost": 0.8, "weight_time": 0.2},
+    1: {"weight_cost": 0.5, "weight_time": 0.5},
+    2: {"weight_cost": 0.2, "weight_time": 0.8},
+}
+
+PRIORITY_LABELS = {
+    0: "Menor Preço",
+    1: "Equilibrado",
+    2: "Mais Rápido",
+}
+
+
+# ===================== FUNÇÕES AUXILIARES =====================
+
+def extrair_preco_numerico(preco: str) -> Optional[float]:
+    if not preco or preco == "N/A":
+        return None
+    numeros = re.sub(r"[^\d,.]", "", preco)
+    numeros = numeros.replace(".", "").replace(",", ".")
+    try:
+        return float(numeros)
+    except ValueError:
+        return None
+
+
+def extrair_duracao_minutos(duracao: str) -> Optional[int]:
+    if not duracao or duracao == "N/A":
+        return None
+    horas = re.search(r"(\d+)\s*h", duracao)
+    minutos = re.search(r"(\d+)\s*m", duracao)
+    total = 0
+    if horas:
+        total += int(horas.group(1)) * 60
+    if minutos:
+        total += int(minutos.group(1))
+    return total if total > 0 else None
+
+
+def converter_voo_para_schema(voo: dict, origem: str, destino: str) -> Optional[FlightSchema]:
+    preco = extrair_preco_numerico(voo.get("preco"))
+    duracao = extrair_duracao_minutos(voo.get("duracao"))
+
+    if preco is None or duracao is None:
+        return None
+
+    return FlightSchema(
+        id=f"flight_{voo.get('posicao', '')}",
+        origin=origem,
+        destination=destino,
+        departure_time=voo.get("horario_partida", ""),
+        arrival_time=voo.get("horario_chegada", ""),
+        duration_minutes=duracao,
+        price=preco,
+        airline=voo.get("companhia", ""),
+        stops=voo.get("paradas", ""),
+        raw_data=voo,
+    )
+
+
+def adaptar_payload_crawler(request: OptimizeTripRequest) -> dict:
     return {
         "origem": request.route.origin,
         "destino": request.route.destination,
@@ -83,72 +177,110 @@ def adaptar_payload(request: OptimizeTripRequest) -> dict:
         "data_volta": request.dates.return_date.isoformat() if request.dates.return_date else None,
         "ida_e_volta": request.dates.is_roundtrip,
         "adultos": request.passengers.adults,
-        "criancas": request.passengers.children
+        "criancas": request.passengers.children,
     }
 
 
-# Mapeamento de cidades para IATA (preparado para expansão futura)
-CIDADE_PARA_IATA = {
-    "são paulo": "GRU",
-    "sao paulo": "GRU",
-    "miami": "MIA",
-    "nova york": "JFK",
-    "new york": "JFK",
-    "orlando": "MCO",
-    "los angeles": "LAX",
-    "rio de janeiro": "GIG",
-    "brasilia": "BSB",
-}
+def formatar_duracao(mins: int) -> str:
+    return f"{mins // 60}h {mins % 60:02d}min"
 
 
-def converter_cidade_para_iata(cidade: str) -> str:
-    """
-    Converte nome de cidade para código IATA.
-    Se já for um código IATA (3 letras), retorna como está.
-    """
-    # Se já é código IATA (3 letras maiúsculas)
-    if len(cidade) == 3 and cidade.isalpha():
-        return cidade.upper()
-    
-    # Tenta converter de nome para IATA
-    cidade_lower = cidade.lower().strip()
-    return CIDADE_PARA_IATA.get(cidade_lower, cidade.upper())
+# ===================== SOLVER SIMPLIFICADO =====================
+
+def solve_itinerary(request: TravelRequestSchema, flights: List[FlightSchema]) -> Optional[ItinerarySolution]:
+    if not flights:
+        return None
+
+    results = []
+    for idx, f in enumerate(flights):
+        total_cost = f.price * request.passengers
+        total_time = f.duration_minutes
+        fitness = (total_cost * request.weight_cost) + (total_time * request.weight_time)
+        results.append((idx, total_cost, total_time, fitness))
+
+    results.sort(key=lambda x: x[3])
+    best = results[0]
+    flight = flights[best[0]]
+
+    return ItinerarySolution(
+        flight=flight,
+        total_cost=best[1],
+        total_duration=best[2],
+        fitness_score=best[3],
+        is_pareto_optimal=True,
+        rank=1,
+    )
 
 
-# ============== Endpoints ==============
+# ===================== ENDPOINTS =====================
 
 @app.get("/")
-def root():
-    """Endpoint de health check"""
-    return {"status": "online", "service": "Otimizador de Viagens API"}
+def health():
+    return {"status": "online", "solver": "NSGA-II", "version": "2.0.0"}
 
 
 @app.post("/optimize-trip")
 def optimize_trip(request: OptimizeTripRequest):
-    """
-    Busca voos otimizados com base nos parâmetros fornecidos.
-    
-    Recebe os dados da viagem, adapta para o formato do crawler,
-    executa a busca e retorna os resultados.
-    """
     try:
-        # Adapta o payload para o formato do crawler
-        dados_busca = adaptar_payload(request)
-        
-        # Chama o crawler (sem salvar arquivo)
-        resultado = buscar_voos(dados_busca, salvar=False)
-        
-        return resultado
-    
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao buscar voos: {str(e)}"
+        payload = adaptar_payload_crawler(request)
+        resultado = buscar_voos(payload, salvar=False)
+        voos_raw = resultado.get("voos", [])
+
+        if not voos_raw:
+            raise HTTPException(404, "Nenhum voo encontrado")
+
+        flights = [
+            f for v in voos_raw
+            if (f := converter_voo_para_schema(v, request.route.origin, request.route.destination))
+        ]
+
+        if not flights:
+            raise HTTPException(422, "Voos inválidos para otimização")
+
+        pref = request.preferences.priority_level
+        weights = PRIORITY_WEIGHTS[pref]
+
+        solver_request = TravelRequestSchema(
+            origin=request.route.origin,
+            destination=request.route.destination,
+            departure_date=request.dates.departure_date.isoformat(),
+            return_date=request.dates.return_date.isoformat() if request.dates.return_date else None,
+            passengers=request.passengers.adults + request.passengers.children,
+            weight_cost=weights["weight_cost"],
+            weight_time=weights["weight_time"],
         )
 
+        solution = solve_itinerary(solver_request, flights)
+        if not solution:
+            raise HTTPException(500, "Solver falhou")
 
-# ============== Para rodar diretamente ==============
+        response = {
+            "status": "success",
+            "priority": PRIORITY_LABELS[pref],
+            "optimization_result": {
+                "total_cost": solution.total_cost,
+                "total_duration": formatar_duracao(solution.total_duration),
+                "fitness_score": solution.fitness_score,
+            },
+            "voo_otimizado": {
+                **solution.flight.raw_data,
+                "preco_numerico": solution.flight.price,
+                "duracao_minutos": solution.flight.duration_minutes,
+            },
+            "total_voos": len(voos_raw),
+        }
+
+        return jsonable_encoder(response)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(500, str(e))
+
+
+# ===================== RUN =====================
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

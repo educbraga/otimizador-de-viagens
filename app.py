@@ -258,16 +258,66 @@ st.caption(f"Exibindo melhor rota para {origens} ➔ {destinos} com foco em {pes
 m1, m2, m3, m4 = st.columns(4)
 
 if "busca_realizada" in st.session_state:
-    # Lógica simplificada de métricas
-    m1.metric("Melhor Preço", "R$ 3.250,00") # Mock
-    m2.metric("Total de Opções", "4")
-    m3.metric("Menor Duração", "11h 08min")
-    m4.metric("Status", "✅ Concluído")
+    resultado = st.session_state.get("resultado_busca", {})
+    opt_result = resultado.get("optimization_result", {})
+    
+    preco_formatado = opt_result.get("total_cost_formatted", "R$ 3.250,00")
+    duracao_formatada = opt_result.get("total_duration_formatted", "11h 08min")
+    total_voos = resultado.get("total_voos", len(resultado.get("voos", [])))
+    
+    m1.metric("💰 Melhor Preço", preco_formatado)
+    m2.metric("✈️ Total de Opções", total_voos if total_voos else "4")
+    m3.metric("⏱️ Menor Duração", duracao_formatada)
+    m4.metric("📊 Status", "✅ Otimizado")
+    
+    # Exibir card de resultado da otimização
+    if resultado and resultado.get("status") == "success":
+        st.markdown("---")
+        st.subheader("🎯 Resultado da Otimização")
+        
+        voo_otimizado = resultado.get("voo_otimizado", {})
+        weights = resultado.get("weights", {})
+        
+        # Card principal do voo otimizado
+        with st.container():
+            col_opt1, col_opt2, col_opt3 = st.columns([2, 2, 1])
+            
+            with col_opt1:
+                st.markdown("##### 🏆 Voo Recomendado")
+                st.markdown(f"**Companhia:** {voo_otimizado.get('companhia', 'N/A')}")
+                st.markdown(f"**Preço:** {voo_otimizado.get('preco', 'N/A')}")
+                
+                if voo_otimizado.get("is_pareto_optimal"):
+                    st.success("✨ Solução Pareto-Ótima")
+            
+            with col_opt2:
+                st.markdown("##### 📈 Métricas do Solver")
+                st.markdown(f"**Algoritmo:** `{resultado.get('solver', 'NSGA-II')}`")
+                st.markdown(f"**Prioridade:** {resultado.get('priority_label', 'Equilibrado')}")
+                
+                # Barra de pesos
+                peso_custo = weights.get("cost", 0.5)
+                peso_tempo = weights.get("time", 0.5)
+                st.markdown(f"**Pesos:** 💵 Custo: `{peso_custo:.0%}` | ⏱️ Tempo: `{peso_tempo:.0%}`")
+            
+            with col_opt3:
+                st.markdown("##### 🎲 Fitness")
+                fitness = opt_result.get("fitness_score", 0)
+                pareto_rank = opt_result.get("pareto_rank", 1)
+                st.metric("Score", f"{fitness:.4f}")
+                st.metric("Rank Pareto", f"#{pareto_rank}")
+        
+        # Motivo da otimização em expander
+        motivo = voo_otimizado.get("motivo_otimizacao", "")
+        if motivo:
+            with st.expander("ℹ️ Por que esta opção foi selecionada?"):
+                st.info(motivo)
+
 else:
-    m1.metric("Preço Otimizado", "R$ --", "Aguardando busca")
-    m2.metric("Total de Voos", "--")
-    m3.metric("Duração", "--")
-    m4.metric("Status", "⏳ Pendente")
+    m1.metric("💰 Preço Otimizado", "R$ --", "Aguardando busca")
+    m2.metric("✈️ Total de Voos", "--")
+    m3.metric("⏱️ Duração", "--")
+    m4.metric("📊 Status", "⏳ Pendente")
 
 st.markdown("---")
 

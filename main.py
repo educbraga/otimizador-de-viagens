@@ -256,17 +256,28 @@ def optimize_trip(request: OptimizeTripRequest):
 
         response = {
             "status": "success",
-            "priority": PRIORITY_LABELS[pref],
+            "solver": "NSGA-II",
+            "priority_label": PRIORITY_LABELS[pref],
+            "weights": {
+                "cost": weights["weight_cost"],
+                "time": weights["weight_time"]
+            },
             "optimization_result": {
                 "total_cost": solution.total_cost,
-                "total_duration": formatar_duracao(solution.total_duration),
+                "total_cost_formatted": f"R$ {solution.total_cost:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                "total_duration": solution.total_duration,
+                "total_duration_formatted": formatar_duracao(solution.total_duration),
                 "fitness_score": solution.fitness_score,
+                "pareto_rank": solution.rank,
             },
             "voo_otimizado": {
                 **solution.flight.raw_data,
                 "preco_numerico": solution.flight.price,
                 "duracao_minutos": solution.flight.duration_minutes,
+                "is_pareto_optimal": solution.is_pareto_optimal,
+                "motivo_otimizacao": f"Este voo foi selecionado por ter o melhor equilíbrio entre custo (R$ {solution.flight.price:,.2f}) e tempo ({formatar_duracao(solution.flight.duration_minutes)}), considerando seus pesos de preferência: {weights['weight_cost']*100:.0f}% custo e {weights['weight_time']*100:.0f}% tempo."
             },
+            "voos": voos_raw,
             "total_voos": len(voos_raw),
         }
 

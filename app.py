@@ -4,6 +4,7 @@ import folium
 from streamlit_folium import st_folium
 from datetime import date, timedelta
 import ast
+import re
 import requests
 
 # 1. Configurações de Estética da Página
@@ -260,13 +261,36 @@ m1, m2, m3, m4 = st.columns(4)
 if "busca_realizada" in st.session_state:
     resultado = st.session_state.get("resultado_busca", {})
     opt_result = resultado.get("optimization_result", {})
+    voos_lista = resultado.get("voos", [])
     
-    preco_formatado = opt_result.get("total_cost_formatted", "R$ 3.250,00")
-    duracao_formatada = opt_result.get("total_duration_formatted", "11h 08min")
-    total_voos = resultado.get("total_voos", len(resultado.get("voos", [])))
+    # Calcula melhor preço e menor duração a partir dos voos reais
+    if voos_lista:
+        precos = []
+        duracoes = []
+        for v in voos_lista:
+            preco_str = v.get("preco", "")
+            # Extrai valor numérico do preço
+            numeros = re.sub(r"[^\d,]", "", preco_str)
+            if numeros:
+                try:
+                    precos.append(float(numeros.replace(".", "").replace(",", ".")))
+                except:
+                    pass
+            duracao_str = v.get("duracao", "")
+            duracoes.append(duracao_str)
+        
+        melhor_preco = min(precos) if precos else 0
+        preco_formatado = f"R$ {melhor_preco:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        # Pega a menor duração (primeira já está ordenada por preço/tempo)
+        duracao_formatada = duracoes[0] if duracoes else "N/A"
+        total_voos = len(voos_lista)
+    else:
+        preco_formatado = opt_result.get("total_cost_formatted", "R$ --")
+        duracao_formatada = opt_result.get("total_duration_formatted", "--")
+        total_voos = resultado.get("total_voos", 0)
     
     m1.metric("💰 Melhor Preço", preco_formatado)
-    m2.metric("✈️ Total de Opções", total_voos if total_voos else "4")
+    m2.metric("✈️ Total de Opções", total_voos if total_voos else "--")
     m3.metric("⏱️ Menor Duração", duracao_formatada)
     m4.metric("📊 Status", "✅ Otimizado")
     
@@ -347,66 +371,55 @@ if alugar_carro:
 with tab_rota:
     coords = load_coordinates()
 
-    # --- MODIFICAÇÃO 3: Lógica de Pares (Ida e Volta) ---
+    # --- Lógica Dinâmica com Dados do Backend ---
     if st.session_state.get("busca_realizada"):
         iata_o = extrair_iata(origens)
         iata_d = extrair_iata(destinos)
         
-        if ida_e_volta:
-            # Criação de dados em PARES (Linha N: Ida, Linha N+1: Volta)
+        resultado = st.session_state.get("resultado_busca", {})
+        voos_api = resultado.get("voos", [])
+        
+        # Se temos dados do backend, usar; senão, dados de fallback
+        if voos_api:
             data_voos = {
-                "Tipo": ["IDA", "VOLTA", "IDA", "VOLTA"],
-                "Cia Aérea": ["Copa Airlines", "Copa Airlines", "LATAM", "LATAM"],
-                "Rota": [
-                    f"{iata_o} ➔ {iata_d}", 
-                    f"{iata_d} ➔ {iata_o}",
-                    f"{iata_o} ➔ {iata_d}",
-                    f"{iata_d} ➔ {iata_o}"
-                ],
-                "Partida": [
-                    f"01:30 ({data_inicio.strftime('%d/%m')})",
-                    f"15:00 ({data_volta.strftime('%d/%m')})",
-                    f"19:40 ({data_inicio.strftime('%d/%m')})",
-                    f"08:20 ({data_volta.strftime('%d/%m')})"
-                ],
-                "Chegada": [
-                    f"10:38 ({data_inicio.strftime('%d/%m')})",
-                    f"00:15 ({(data_volta + timedelta(days=1)).strftime('%d/%m')})",
-                    f"05:15 ({(data_inicio + timedelta(days=1)).strftime('%d/%m')})",
-                    f"18:40 ({data_volta.strftime('%d/%m')})"
-                ],
-                "Duração": ["11h 08min", "11h 15min", "12h 35min", "12h 20min"],
-                "Detalhes": ["1 parada", "1 parada", "1 parada", "1 parada"],
-                "Conexões": [
-                    "Panamá (PTY)", 
-                    "Panamá (PTY)", 
-                    "Lima (LIM)", 
-                    "Lima (LIM)"
-                ],
-                "Preço Total": ["R$ 3.250,00 (Par)", "", "R$ 3.540,00 (Par)", ""]
+                "#": [],
+                "Cia Aérea": [],
+                "Rota": [],
+                "Partida": [],
+                "Chegada": [],
+                "Duração": [],
+                "Paradas": [],
+                "Preço": []
             }
+            
+            for voo in voos_api:
+                data_voos["#"].append(voo.get("posicao", "-"))
+                data_voos["Cia Aérea"].append(voo.get("companhia", "N/A"))
+                data_voos["Rota"].append(f"{iata_o} ➔ {iata_d}")
+                data_voos["Partida"].append(voo.get("horario_partida", "N/A"))
+                data_voos["Chegada"].append(voo.get("horario_chegada", "N/A"))
+                data_voos["Duração"].append(voo.get("duracao", "N/A"))
+                data_voos["Paradas"].append(voo.get("paradas", "N/A"))
+                data_voos["Preço"].append(voo.get("preco", "N/A"))
         else:
-            # Apenas Ida
+            # Fallback: dados de demonstração
             data_voos = {
-                "Tipo": ["IDA", "IDA", "IDA", "IDA"],
+                "#": [1, 2, 3, 4],
                 "Cia Aérea": ["Copa Airlines", "Avianca", "LATAM", "Delta"],
                 "Rota": [f"{iata_o} ➔ {iata_d}"] * 4,
-                "Partida": [
-                    f"01:30 ({data_inicio.strftime('%d/%m')})",
-                    f"06:05 ({data_inicio.strftime('%d/%m')})",
-                    f"19:40 ({data_inicio.strftime('%d/%m')})",
-                    f"22:50 ({data_inicio.strftime('%d/%m')})"
-                ],
+                "Partida": ["01:30", "06:05", "19:40", "22:50"],
                 "Chegada": ["10:38", "17:20", "05:15 (+1)", "09:30 (+1)"],
                 "Duração": ["11h 08m", "13h 15m", "12h 35m", "14h 40m"],
-                "Detalhes": ["1 parada", "1 parada", "1 parada", "1 parada"],
-                "Conexões": ["Panamá (PTY)", "Bogotá (BOG)", "Lima (LIM)", "Atlanta (ATL)"],
-                "Preço Total": ["R$ 1.800", "R$ 1.950", "R$ 2.100", "R$ 2.400"]
+                "Paradas": ["1 escala", "1 escala", "1 escala", "1 escala"],
+                "Preço": ["R$ 2.694", "R$ 2.751", "R$ 2.850", "R$ 3.100"]
             }
 
         df_rota = pd.DataFrame(data_voos)
+        
+        # Destaca o voo otimizado (primeiro = melhor)
+        voo_otimizado_pos = resultado.get("voo_otimizado", {}).get("posicao", 1) if resultado else 1
 
-        st.info("👇 Clique na tabela para visualizar a rota. Em caso de Ida/Volta, os voos são exibidos em pares sequenciais.")
+        st.info("👇 Clique na tabela para visualizar a rota. O voo destacado é a melhor opção otimizada.")
 
         event = st.dataframe(
             df_rota,
@@ -420,7 +433,6 @@ with tab_rota:
         selected_index = rows[0] if rows else 0
         
         rota_selecionada = df_rota.iloc[selected_index]
-        conexao_texto = rota_selecionada["Conexões"]
         cia_selecionada = rota_selecionada["Cia Aérea"]
         rota_str = rota_selecionada["Rota"]
 
@@ -461,27 +473,13 @@ with tab_rota:
             icon=folium.Icon(color="red", icon="flag")
         ).add_to(mapa)
 
-        ponto_conexao = None
-        if "PTY" in conexao_texto and "PTY" in coords: ponto_conexao = coords["PTY"]
-        elif "BOG" in conexao_texto and "BOG" in coords: ponto_conexao = coords["BOG"]
-        elif "LIM" in conexao_texto and "LIM" in coords: ponto_conexao = coords["LIM"]
-        elif "ATL" in conexao_texto and "ATL" in coords: ponto_conexao = coords["ATL"]
-
-        if ponto_conexao:
-            folium.PolyLine(
-                [ponto_origem, ponto_destino],
-                color="#0066FF",
-                weight=4,
-                opacity=0.8
-            ).add_to(mapa)
-            folium.CircleMarker(ponto_conexao, radius=6, color="orange", fill=True, fill_color="orange", popup=conexao_texto).add_to(mapa)
-        else:
-            folium.PolyLine(
-                [ponto_origem, ponto_destino],
-                color="#0066FF",
-                weight=4,
-                opacity=0.8
-            ).add_to(mapa)
+        # Linha de rota direta
+        folium.PolyLine(
+            [ponto_origem, ponto_destino],
+            color="#0066FF",
+            weight=4,
+            opacity=0.8
+        ).add_to(mapa)
 
         st_folium(mapa, width="100%", height=400, key="mapa_rota")
     else:

@@ -87,6 +87,7 @@ O sistema é composto por três componentes principais que podem ser executados 
 4. Visualize os resultados em formato de tabela e mapa
 
    ![Resultados](images/results.png)
+   ![Resultados](images/results2.png)
 
 ## 📁 Estrutura do Projeto
 
